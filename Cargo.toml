@@ -6,6 +6,6 @@ edition = "2018"
 description = "Idiomatic Rust Competitive Programming Library"
 documentation = "https://docs.rs/libpuri"
 repository = "https://github.com/YujinGaya/libpuri"
-license = ""
+license = "MIT OR Apache-2.0"
 
 [dependencies]
