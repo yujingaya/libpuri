@@ -8,7 +8,7 @@ use std::ptr;
 
 /// A segment tree that supports range query and range update.
 ///
-/// A lazy segment requires a [`Monoid`] that represents a property of intervals and another
+/// A lazy segment requires a [`Monoid`] that represents a property of an interval and another
 /// monoid that represents a range operation. The latter should also conform to a [`LazyAct`] which
 /// defines how the range operation should be applied to a range. Check out the documentation of
 /// both traits for further details.
