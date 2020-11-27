@@ -3,7 +3,10 @@ use std::ops::{
 };
 
 /// Into inclusive start and exclusive end indices.
+/// 
+/// Used for range query and range update in [`SegTree`](crate::SegTree) and [`LazySegTree`](crate::LazySegTree).
 pub trait IntoIndex {
+    /// Computes index from [`RangeBounds`]. The parameter `size` is the size of the full range.
     fn into_index(self, size: usize) -> (usize, usize);
 }
 

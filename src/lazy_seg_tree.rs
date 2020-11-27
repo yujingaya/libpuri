@@ -7,7 +7,7 @@ use std::ptr;
 // reference: https://github.com/rust-lang/rust/issues/67295
 
 /// A segment tree that supports range query and range update.
-/// 
+///
 /// A lazy segment requires a [`Monoid`] that represents a property of intervals and another
 /// monoid that represents a range operation. The latter should also conform to a [`LazyAct`] which
 /// defines how the range operation should be applied to a range. Check out the documentation of
@@ -62,10 +62,10 @@ use std::ptr;
 ///
 /// assert_eq!(lazy_tree.get(1..3), MinMax(5,  47));
 /// assert_eq!(lazy_tree.get(3..5), MinMax(42, 47));
-/// 
+///
 /// // Set index 3 to 0 [5, 5, 47, 0, 42, 42]
 /// lazy_tree.set(3, MinMax(0, 0));
-/// 
+///
 /// assert_eq!(lazy_tree.get(..), MinMax(0,  47));
 /// assert_eq!(lazy_tree.get(3..5), MinMax(0,  42));
 /// assert_eq!(lazy_tree.get(0), MinMax(5, 5));
@@ -73,6 +73,7 @@ use std::ptr;
 ///
 // LazyAct of each node represents an action not yet commited to its children but already commited
 // to the node itself.
+// Conld be refactored into `Vec<(M, Option<A>)>`
 pub struct LazySegTree<M: Monoid, A: LazyAct<M>>(Vec<(M, A)>);
 
 impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
@@ -123,11 +124,11 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// If you know the initial elements in advance, `collect()` should be preferred over `new()`.
     /// Initializing with the identity elements and updating n elements will tax you O(nlog(n)),
     /// whereas `collect()` implementation is O(n) by computing the interval properties only once.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use libpuri::{LazySegTree, Monoid, LazyAct};
-    /// # 
+    /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
     /// # impl Monoid for MinMax {
@@ -173,7 +174,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// # Examples
     /// ```
     /// # use libpuri::{LazySegTree, Monoid, LazyAct};
-    /// # 
+    /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
     /// # impl Monoid for MinMax {
@@ -207,13 +208,13 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///     .collect();
     ///
     /// assert_eq!(lazy_tree.get(..), MinMax(0, 42));
-    /// 
+    ///
     /// // [5, 47, 11, 7, 2]
     /// lazy_tree.act(0..3, Add(5));
     ///
     /// // [5, 47, 4, 0, -5]
     /// lazy_tree.act(2..5, Add(-7));
-    /// 
+    ///
     /// assert_eq!(lazy_tree.get(..), MinMax(-5, 47));
     /// assert_eq!(lazy_tree.get(..4), MinMax(0, 47));
     /// assert_eq!(lazy_tree.get(2), MinMax(4, 4));
@@ -251,11 +252,11 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// Sets an element with given index to the value. It propagates its update to its ancestors.
     ///
     /// It takes O(log(n)) to propagate the update as the height of the tree is log(n).
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use libpuri::{LazySegTree, Monoid, LazyAct};
-    /// # 
+    /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
     /// # impl Monoid for MinMax {
@@ -289,7 +290,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///     .collect();
     ///
     /// assert_eq!(lazy_tree.get(..), MinMax(0, 42));
-    /// 
+    ///
     /// // [0, 1, 6, 7, 2]
     /// lazy_tree.set(1, MinMax(1, 1));
     ///
@@ -314,11 +315,11 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// Apply an action to elements within given range.
     ///
     /// It takes O(log(n)).
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use libpuri::{LazySegTree, Monoid, LazyAct};
-    /// # 
+    /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
     /// # impl Monoid for MinMax {
@@ -352,7 +353,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///     .collect();
     ///
     /// assert_eq!(lazy_tree.get(..), MinMax(0, 42));
-    /// 
+    ///
     /// // [0, 30, -6, 7, 2]
     /// lazy_tree.act(1..3, Add(-12));
     ///
@@ -402,8 +403,8 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
 
 impl<M, A> Debug for LazySegTree<M, A>
 where
-    M: Monoid + Debug,
-    A: LazyAct<M> + Debug,
+    M: Debug + Monoid,
+    A: Debug + LazyAct<M>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut tree = "LazySegTree\n".to_owned();
@@ -428,8 +429,12 @@ where
     }
 }
 
-/// You can `collect` into a segment tree.
-impl<M: Monoid, A: LazyAct<M>> FromIterator<M> for LazySegTree<M, A> {
+/// You can `collect` into a lazy segment tree.
+impl<M, A> FromIterator<M> for LazySegTree<M, A>
+where
+    M: Monoid,
+    A: LazyAct<M>,
+{
     fn from_iter<I: IntoIterator<Item = M>>(iter: I) -> Self {
         let mut iter = iter.into_iter();
         let (_, upper) = iter.size_hint();
@@ -478,7 +483,6 @@ mod tests {
             MinMax(self.0.min(rhs.0), self.1.max(rhs.1))
         }
     }
-    
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct Add(i64);
     impl Monoid for Add {
@@ -487,7 +491,6 @@ mod tests {
             Add(self.0.saturating_add(rhs.0))
         }
     }
-    
     impl LazyAct<MinMax> for Add {
         fn act(&self, m: &MinMax) -> MinMax {
             if m == &MinMax::ID {
@@ -524,5 +527,25 @@ mod tests {
         assert_eq!(t.get(0..=5), MinMax(5, 47));
         assert_eq!(t.get(6..=7), MinMax::ID);
         assert_eq!(t.get(5), MinMax(42, 42));
+    }
+
+    #[test]
+    fn many_intervals() {
+        let mut t: LazySegTree<MinMax, Add> = LazySegTree::new(88);
+
+        for i in 0..88 {
+            t.set(i, MinMax(0, 0));
+        }
+
+        t.act(0..20, Add(5));
+        t.act(20..40, Add(42));
+        t.act(40..60, Add(-5));
+        t.act(60..88, Add(17));
+        t.act(10..70, Add(1));
+
+        assert_eq!(t.get(..), MinMax(-4, 43));
+        assert_eq!(t.get(0..20), MinMax(5, 6));
+        assert_eq!(t.get(70..88), MinMax(17, 17));
+        assert_eq!(t.get(40), MinMax(-4, -4));
     }
 }
