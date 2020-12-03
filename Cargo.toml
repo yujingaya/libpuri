@@ -1,11 +1,13 @@
 [package]
 name = "libpuri"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["YujinGaya <yujin.gaya@gmail.com>"]
 edition = "2018"
 description = "Idiomatic Rust Competitive Programming Library"
 documentation = "https://docs.rs/libpuri"
 repository = "https://github.com/YujinGaya/libpuri"
 license = "MIT OR Apache-2.0"
+keyword = ["math", "data-structures"]
+categories = ["algorithms", "data-structures", "mathematics", "science"]
 
 [dependencies]
