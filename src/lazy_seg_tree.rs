@@ -1,6 +1,5 @@
-use super::algebra::{LazyAct, Monoid};
+use super::algebra::{Act, Monoid};
 use super::util::IntoIndex;
-use std::fmt::{self, Debug};
 use std::iter::FromIterator;
 use std::ptr;
 // TODO(yujingaya) Rewrite tests/doctests to reuse MinMax, Add structs when cfg(doctest) is stable.
@@ -8,11 +7,27 @@ use std::ptr;
 
 /// A segment tree that supports range query and range update.
 ///
-/// A lazy segment requires a [`Monoid`] that represents a property of an interval and another
-/// monoid that represents a range operation. The latter should also conform to a [`LazyAct`] which
-/// defines how the range operation should be applied to a range. Check out the documentation of
-/// both traits for further details.
+/// # Use a lazy segment tree when:
+/// - You want to efficiently query on an interval property.
+/// - You want to efficiently update properties in an interval.
 ///
+/// # Requirements
+///
+/// A lazy segment tree requires two monoids and an action of one on other like following:
+///
+/// - `M`: A [`monoid`](crate::Monoid) that represents the interval property.
+/// - `A`: A [`monoid`](crate::Monoid) that reprenents the interval update.
+/// - `L`: An [`action`](crate::Act) that represents the application of an update on a property.
+///
+/// For a lazy segment tree to work, the action should also satisfy the following property.
+///
+/// ```ignore
+/// // An element `f` of `A` should be a homomorphism from `M` to `M`.
+/// f(m * n) == f(m) * f(n)
+/// ```
+/// 
+/// This property cannot be checked by the compiler so the implementer should verify it by themself.
+/// 
 /// # Examples
 /// Following example supports two operations:
 ///
@@ -20,10 +35,14 @@ use std::ptr;
 /// - Add a number to each element within an interval.
 ///
 /// ```
-/// use libpuri::{Monoid, LazyAct, LazySegTree};
+/// use libpuri::{Monoid, Act, LazySegTree};
 ///
 /// #[derive(Clone, Debug, PartialEq, Eq)]
 /// struct MinMax(i64, i64);
+///
+/// #[derive(Clone, Debug, PartialEq, Eq)]
+/// struct Add(i64);
+///
 /// impl Monoid for MinMax {
 ///     const ID: Self = MinMax(i64::MAX, i64::MIN);
 ///     fn op(&self, rhs: &Self) -> Self {
@@ -31,16 +50,14 @@ use std::ptr;
 ///     }
 /// }
 ///
-/// #[derive(Clone, Debug, PartialEq, Eq)]
-/// struct Add(i64);
 /// impl Monoid for Add {
 ///     const ID: Self = Add(0);
 ///     fn op(&self, rhs: &Self) -> Self {
-///         Add(self.0.saturating_add(rhs.0))
+///         Add(self.0 + rhs.0)
 ///     }
 /// }
 ///
-/// impl LazyAct<MinMax> for Add {
+/// impl Act<MinMax> for Add {
 ///     fn act(&self, m: &MinMax) -> MinMax {
 ///         if m == &MinMax::ID {
 ///             MinMax::ID
@@ -74,9 +91,9 @@ use std::ptr;
 // LazyAct of each node represents an action not yet commited to its children but already commited
 // to the node itself.
 // Conld be refactored into `Vec<(M, Option<A>)>`
-pub struct LazySegTree<M: Monoid, A: LazyAct<M>>(Vec<(M, A)>);
+pub struct LazySegTree<M: Monoid + Clone, A: Monoid + Act<M> + Clone>(Vec<(M, A)>);
 
-impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
+impl<M: Monoid + Clone, A: Monoid + Act<M> + Clone> LazySegTree<M, A> {
     fn size(&self) -> usize {
         self.0.len() / 2
     }
@@ -113,7 +130,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     }
 }
 
-impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
+impl<M: Monoid + Clone, A: Monoid + Act<M> + Clone> LazySegTree<M, A> {
     /// Constructs a new lazy segment tree with at least given number of intervals can be stored.
     ///
     /// The segment tree will be initialized with the identity elements.
@@ -129,7 +146,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///
     /// # Examples
     /// ```
-    /// # use libpuri::{LazySegTree, Monoid, LazyAct};
+    /// # use libpuri::{LazySegTree, Monoid, Act};
     /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
@@ -149,7 +166,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// #     }
     /// # }
     /// #
-    /// # impl LazyAct<MinMax> for Add {
+    /// # impl Act<MinMax> for Add {
     /// #     fn act(&self, m: &MinMax) -> MinMax {
     /// #         if m == &MinMax::ID {
     /// #             MinMax::ID
@@ -174,7 +191,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///
     /// # Examples
     /// ```
-    /// # use libpuri::{LazySegTree, Monoid, LazyAct};
+    /// # use libpuri::{LazySegTree, Monoid, Act};
     /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
@@ -194,7 +211,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// #     }
     /// # }
     /// #
-    /// # impl LazyAct<MinMax> for Add {
+    /// # impl Act<MinMax> for Add {
     /// #     fn act(&self, m: &MinMax) -> MinMax {
     /// #         if m == &MinMax::ID {
     /// #             MinMax::ID
@@ -246,7 +263,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// `lazy_tree.get(a)` to get a specific element.
     /// # Examples
     /// ```
-    /// # use libpuri::{LazySegTree, Monoid, LazyAct};
+    /// # use libpuri::{LazySegTree, Monoid, Act};
     /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
@@ -266,7 +283,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// #     }
     /// # }
     /// #
-    /// # impl LazyAct<MinMax> for Add {
+    /// # impl Act<MinMax> for Add {
     /// #     fn act(&self, m: &MinMax) -> MinMax {
     /// #         if m == &MinMax::ID {
     /// #             MinMax::ID
@@ -328,7 +345,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///
     /// # Examples
     /// ```
-    /// # use libpuri::{LazySegTree, Monoid, LazyAct};
+    /// # use libpuri::{LazySegTree, Monoid, Act};
     /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
@@ -348,7 +365,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// #     }
     /// # }
     /// #
-    /// # impl LazyAct<MinMax> for Add {
+    /// # impl Act<MinMax> for Add {
     /// #     fn act(&self, m: &MinMax) -> MinMax {
     /// #         if m == &MinMax::ID {
     /// #             MinMax::ID
@@ -391,7 +408,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     ///
     /// # Examples
     /// ```
-    /// # use libpuri::{LazySegTree, Monoid, LazyAct};
+    /// # use libpuri::{LazySegTree, Monoid, Act};
     /// #
     /// # #[derive(Clone, Debug, PartialEq, Eq)]
     /// # struct MinMax(i64, i64);
@@ -411,7 +428,7 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// #     }
     /// # }
     /// #
-    /// # impl LazyAct<MinMax> for Add {
+    /// # impl Act<MinMax> for Add {
     /// #     fn act(&self, m: &MinMax) -> MinMax {
     /// #         if m == &MinMax::ID {
     /// #             MinMax::ID
@@ -474,39 +491,40 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     }
 }
 
-impl<M, A> Debug for LazySegTree<M, A>
-where
-    M: Debug + Monoid,
-    A: Debug + LazyAct<M>,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut tree = "LazySegTree\n".to_owned();
-        for h in 0..self.height() {
-            for i in 1 << h..1 << (h + 1) {
-                tree.push_str(&if self.0[i].0 == M::ID {
-                    "(id, ".to_owned()
-                } else {
-                    format!("({:?}, ", self.0[i].0)
-                });
-                tree.push_str(&if self.0[i].1 == A::ID {
-                    "id) ".to_owned()
-                } else {
-                    format!("{:?}) ", self.0[i].1)
-                });
-            }
-            tree.pop();
-            tree.push('\n');
-        }
+// TODO(yujingaya) New way to print without Eq
+// impl<M, A> Debug for LazySegTree<M, A>
+// where
+//     M: Debug + Monoid,
+//     A: Debug + Act<M>,
+// {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         let mut tree = "LazySegTree\n".to_owned();
+//         for h in 0..self.height() {
+//             for i in 1 << h..1 << (h + 1) {
+//                 tree.push_str(&if self.0[i].0 == M::ID {
+//                     "(id, ".to_owned()
+//                 } else {
+//                     format!("({:?}, ", self.0[i].0)
+//                 });
+//                 tree.push_str(&if self.0[i].1 == A::ID {
+//                     "id) ".to_owned()
+//                 } else {
+//                     format!("{:?}) ", self.0[i].1)
+//                 });
+//             }
+//             tree.pop();
+//             tree.push('\n');
+//         }
 
-        f.write_str(&tree)
-    }
-}
+//         f.write_str(&tree)
+//     }
+// }
 
 /// You can `collect` into a lazy segment tree.
 impl<M, A> FromIterator<M> for LazySegTree<M, A>
 where
-    M: Monoid,
-    A: LazyAct<M>,
+    M: Monoid + Clone,
+    A: Monoid + Act<M> + Clone,
 {
     fn from_iter<I: IntoIterator<Item = M>>(iter: I) -> Self {
         let v: Vec<M> = iter.into_iter().collect();
@@ -519,6 +537,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Act;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct MinMax(i64, i64);
@@ -528,6 +547,7 @@ mod tests {
             MinMax(self.0.min(rhs.0), self.1.max(rhs.1))
         }
     }
+
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct Add(i64);
     impl Monoid for Add {
@@ -536,7 +556,8 @@ mod tests {
             Add(self.0.saturating_add(rhs.0))
         }
     }
-    impl LazyAct<MinMax> for Add {
+
+    impl Act<MinMax> for Add {
         fn act(&self, m: &MinMax) -> MinMax {
             if m == &MinMax::ID {
                 MinMax::ID

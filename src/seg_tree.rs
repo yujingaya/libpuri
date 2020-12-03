@@ -48,11 +48,28 @@ use std::ptr;
 /// two nodes at each height of the tree hence the time complexity O(log(n)).
 ///
 /// # Use a segment tree when:
+/// - You want to efficiently query on an interval property.
 /// - You only update one element at a time.
-/// - You want to efficiently query on a property of interval.
-/// - The interval property is computed by [associative operations](https://en.wikipedia.org/wiki/Associative_property) on the elements in the interval.
+/// 
+/// # Requirements
+/// Here _the operation_ is how we get an interval property of a parent node from the
+/// child nodes. For instance, the minimum element within interval [0, 4) is minimum element of
+/// mimima from intervals [0, 2) and [2, 4) so the `min` is the operation.
+/// - The interval property has an identity with respect to the operation.
+/// - The operation is associative.
+/// - The interval property of a union of two disjoint intervals is the result of the performing
+/// operation on the interval properties of the two intervals.
 ///
-/// To be precise, a segment tree requires the elements to implement the [`Monoid`] trait.
+/// [1]: https://en.wikipedia.org/wiki/Associative_property
+///
+/// In case of our example, every elements of `i32` is less than or equal to `i32::MAX` so we have an identity.
+/// And `min(a, min(b, c)) == min(min(a, b), c)` so it is associative.
+/// And if the minima of [a1, a2, ... , an] and [b1, b2, ... , bn] are a and b respectively, then
+/// the minimum of [a1, a2, ..., an, b1, b2, ... , bn] is min(a, b).
+/// Therefore we can use segment tree to efficiently query the minimum element of an interval.
+/// 
+/// To capture the requirements in the Rust programming language,
+/// a segment tree requires the elements to implement the [`Monoid`] trait.
 ///
 /// # Performance
 /// Given n elements, it computes the interval property in O(log(n)) at the expense of O(log(n))
@@ -77,23 +94,31 @@ use std::ptr;
 /// // Segment tree can be initialized from an iterator of the monoid
 /// let mut seg_tree: SegTree<Sum> = [1, 2, 3, 4, 5].iter().map(|&n| Sum(n)).collect();
 ///
-/// // Add elements within range 0..=3
-/// assert_eq!(seg_tree.get(0..=3), Sum(10));
+/// // [1, 2, 3, 4]
+/// assert_eq!(seg_tree.get(0..4), Sum(10));
 ///
-/// // Update element at 2 to 42
+/// // [1, 2, 42, 4, 5]
 /// seg_tree.set(2, Sum(42));
-/// assert_eq!(seg_tree.get(0..=3), Sum(49));
+/// 
+/// // [1, 2, 42, 4]
+/// assert_eq!(seg_tree.get(0..4), Sum(49));
 /// ```
+// TODO(yujingaya) remove identity requirement with non-full binary tree?
+// Could be a semigroup
+// reference: https://codeforces.com/blog/entry/18051
+// An identity requirement could be lifted if we implement the tree with complete tree instead
+// of perfect tree, making this trait name a semigroup. But for the sake of simplicity, we
+// leave it this way for now.
 #[derive(Debug)]
-pub struct SegTree<M: Monoid>(Vec<M>);
+pub struct SegTree<M: Monoid + Clone>(Vec<M>);
 
-impl<M: Monoid> SegTree<M> {
+impl<M: Monoid + Clone> SegTree<M> {
     fn size(&self) -> usize {
         self.0.len() / 2
     }
 }
 
-impl<M: Monoid> SegTree<M> {
+impl<M: Monoid + Clone> SegTree<M> {
     /// Constructs a new segment tree with at least given number of interval propertiess can be stored.
     ///
     /// The segment tree will be initialized with the identity elements.
@@ -278,7 +303,7 @@ impl<M: Monoid> SegTree<M> {
 }
 
 /// You can `collect` into a segment tree.
-impl<M: Monoid> FromIterator<M> for SegTree<M> {
+impl<M: Monoid + Clone> FromIterator<M> for SegTree<M> {
     fn from_iter<I: IntoIterator<Item = M>>(iter: I) -> Self {
         let v: Vec<M> = iter.into_iter().collect();
         let len = v.len();
