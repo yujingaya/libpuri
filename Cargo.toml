@@ -1,6 +1,6 @@
 [package]
 name = "libpuri"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["YujinGaya <yujin.gaya@gmail.com>"]
 edition = "2018"
 description = "Idiomatic Rust Competitive Programming Library"
