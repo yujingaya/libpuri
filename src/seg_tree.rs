@@ -94,17 +94,18 @@ impl<M: Monoid> SegTree<M> {
 }
 
 impl<M: Monoid> SegTree<M> {
-    /// Constructs a new segment tree with at least given number of intervals can be stored.
+    /// Constructs a new segment tree with at least given number of interval propertiess can be stored.
     ///
     /// The segment tree will be initialized with the identity elements.
-    ///
+    /// 
     /// # Complexity
     /// O(n).
-    ///
-    /// If you know the initial elements in advance, `collect()` should be preferred over `new()`.
+    /// 
+    /// If you know the initial elements in advance, [`from_iter_sized()`](SegTree::from_iter_sized) should be preferred over
+    /// `new()`.
     ///
     /// Initializing with the identity elements and updating n elements will tax you O(nlog(n)),
-    /// whereas `collect()` implementation is O(n) by computing the interval properties only once.
+    /// whereas `from_iter_sized()` is O(n) by computing the interval properties only once.
     ///
     /// # Examples
     /// ```
@@ -118,6 +119,8 @@ impl<M: Monoid> SegTree<M> {
     ///     fn op(&self, rhs: &Self) -> Self { Self(self.0.min(rhs.0), self.1.max(rhs.1)) }
     /// }
     ///
+    /// // ⚠️ Use `from_iter_sized` whenever possible.
+    /// // See the Complexity paragraph above for how it differs.
     /// let mut seg_tree: SegTree<MinMax> = SegTree::new(4);
     ///
     /// seg_tree.set(0, MinMax(1, 1));
@@ -133,6 +136,65 @@ impl<M: Monoid> SegTree<M> {
     /// ```
     pub fn new(size: usize) -> Self {
         SegTree(vec![M::ID; size.next_power_of_two() * 2])
+    }
+
+    /// Constructs a new segment tree with given interval properties.
+    ///
+    /// # Complexity
+    /// O(n).
+    ///
+    /// # Examples
+    /// ```
+    /// use libpuri::{Monoid, SegTree};
+    ///
+    /// #[derive(Clone, Debug, PartialEq, Eq)]
+    /// struct Sum(i64);
+    ///
+    /// impl Monoid for Sum {
+    ///     const ID: Self = Self(0);
+    ///     fn op(&self, rhs: &Self) -> Self { Self(self.0 + rhs.0) }
+    /// }
+    ///
+    /// let mut seg_tree: SegTree<Sum> = SegTree::from_iter_sized(
+    ///     [1, 2, 3, 42].iter().map(|&i| Sum(i)),
+    ///     4
+    /// );
+    ///
+    /// assert_eq!(seg_tree.get(0..4), Sum(48));
+    ///
+    /// // [1, 2, 3, 0]
+    /// seg_tree.set(3, Sum(0));
+    /// assert_eq!(seg_tree.get(0..2), Sum(3));
+    /// assert_eq!(seg_tree.get(2..4), Sum(3));
+    ///
+    /// // [1, 2, 2, 0]
+    /// seg_tree.set(2, Sum(2));
+    /// assert_eq!(seg_tree.get(0..3), Sum(5));
+    /// assert_eq!(seg_tree.get(0..4), Sum(5));
+    /// ```
+    pub fn from_iter_sized<I: IntoIterator<Item = M>>(iter: I, size: usize) -> Self {
+        let mut iter = iter.into_iter();
+        let size = size.next_power_of_two();
+        let mut v = Vec::with_capacity(size * 2);
+
+        let v_ptr: *mut M = v.as_mut_ptr();
+
+        unsafe {
+            v.set_len(size * 2);
+
+            for i in 0..size {
+                ptr::write(
+                    v_ptr.add(size + i),
+                    if let Some(m) = iter.next() { m } else { M::ID },
+                );
+            }
+
+            for i in (1..size).rev() {
+                ptr::write(v_ptr.add(i), v[i * 2].op(&v[i * 2 + 1]));
+            }
+        }
+
+        SegTree(v)
     }
 
     /// Queries on the given interval.
@@ -218,34 +280,10 @@ impl<M: Monoid> SegTree<M> {
 /// You can `collect` into a segment tree.
 impl<M: Monoid> FromIterator<M> for SegTree<M> {
     fn from_iter<I: IntoIterator<Item = M>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
-        let (_, upper) = iter.size_hint();
+        let v: Vec<M> = iter.into_iter().collect();
+        let len = v.len();
 
-        if let Some(upper) = upper {
-            let size = upper.next_power_of_two();
-            let mut v = Vec::with_capacity(size * 2);
-
-            let v_ptr: *mut M = v.as_mut_ptr();
-
-            unsafe {
-                v.set_len(size * 2);
-
-                for i in 0..size {
-                    ptr::write(
-                        v_ptr.add(size + i),
-                        if let Some(m) = iter.next() { m } else { M::ID },
-                    );
-                }
-
-                for i in (1..size).rev() {
-                    ptr::write(v_ptr.add(i), v[i * 2].op(&v[i * 2 + 1]));
-                }
-            }
-
-            SegTree(v)
-        } else {
-            todo!()
-        }
+        SegTree::from_iter_sized(v, len)
     }
 }
 

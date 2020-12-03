@@ -121,9 +121,11 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// # Complexity
     /// O(n).
     ///
-    /// If you know the initial elements in advance, `collect()` should be preferred over `new()`.
+    /// If you know the initial elements in advance,
+    /// [`from_iter_sized()`](LazySegTree::from_iter_sized) should be preferred over `new()`.
+    ///
     /// Initializing with the identity elements and updating n elements will tax you O(nlog(n)),
-    /// whereas `collect()` implementation is O(n) by computing the interval properties only once.
+    /// whereas `from_iter_sized()` is O(n) by computing the interval properties only once.
     ///
     /// # Examples
     /// ```
@@ -163,6 +165,77 @@ impl<M: Monoid, A: LazyAct<M>> LazySegTree<M, A> {
     /// ```
     pub fn new(size: usize) -> Self {
         LazySegTree(vec![(M::ID, A::ID); size.next_power_of_two() * 2])
+    }
+
+    /// Constructs a new lazy segment tree with given intervals properties.
+    ///
+    /// # Complexity
+    /// O(n).
+    ///
+    /// # Examples
+    /// ```
+    /// # use libpuri::{LazySegTree, Monoid, LazyAct};
+    /// #
+    /// # #[derive(Clone, Debug, PartialEq, Eq)]
+    /// # struct MinMax(i64, i64);
+    /// # impl Monoid for MinMax {
+    /// #     const ID: Self = MinMax(i64::MAX, i64::MIN);
+    /// #     fn op(&self, rhs: &Self) -> Self {
+    /// #         MinMax(self.0.min(rhs.0), self.1.max(rhs.1))
+    /// #     }
+    /// # }
+    /// #
+    /// # #[derive(Clone, Debug, PartialEq, Eq)]
+    /// # struct Add(i64);
+    /// # impl Monoid for Add {
+    /// #     const ID: Self = Add(0);
+    /// #     fn op(&self, rhs: &Self) -> Self {
+    /// #         Add(self.0.saturating_add(rhs.0))
+    /// #     }
+    /// # }
+    /// #
+    /// # impl LazyAct<MinMax> for Add {
+    /// #     fn act(&self, m: &MinMax) -> MinMax {
+    /// #         if m == &MinMax::ID {
+    /// #             MinMax::ID
+    /// #         } else {
+    /// #             MinMax(m.0 + self.0, m.1 + self.0)
+    /// #         }
+    /// #     }
+    /// # }
+    /// let v = [0, 42, 17, 6, -11].iter().map(|&i| MinMax(i, i));
+    /// let mut lazy_tree: LazySegTree<MinMax, Add> = LazySegTree::from_iter_sized(v, 5);
+    ///
+    /// // Initialized with [0, 42, 17, 6, -11]
+    /// assert_eq!(lazy_tree.get(..), MinMax(-11, 42));
+    /// ```
+    pub fn from_iter_sized<I: IntoIterator<Item = M>>(iter: I, size: usize) -> Self {
+        let mut iter = iter.into_iter();
+        let size = size.next_power_of_two();
+        let mut v = Vec::with_capacity(size * 2);
+
+        let v_ptr: *mut (M, A) = v.as_mut_ptr();
+
+        unsafe {
+            v.set_len(size * 2);
+
+            for i in 0..size {
+                ptr::write(
+                    v_ptr.add(size + i),
+                    if let Some(m) = iter.next() {
+                        (m, A::ID)
+                    } else {
+                        (M::ID, A::ID)
+                    },
+                );
+            }
+
+            for i in (1..size).rev() {
+                ptr::write(v_ptr.add(i), (v[i * 2].0.op(&v[i * 2 + 1].0), A::ID));
+            }
+        }
+
+        LazySegTree(v)
     }
 
     /// Queries on the given interval.
@@ -436,38 +509,10 @@ where
     A: LazyAct<M>,
 {
     fn from_iter<I: IntoIterator<Item = M>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
-        let (_, upper) = iter.size_hint();
+        let v: Vec<M> = iter.into_iter().collect();
+        let len = v.len();
 
-        if let Some(upper) = upper {
-            let size = upper.next_power_of_two();
-            let mut v = Vec::with_capacity(size * 2);
-
-            let v_ptr: *mut (M, A) = v.as_mut_ptr();
-
-            unsafe {
-                v.set_len(size * 2);
-
-                for i in 0..size {
-                    ptr::write(
-                        v_ptr.add(size + i),
-                        if let Some(m) = iter.next() {
-                            (m, A::ID)
-                        } else {
-                            (M::ID, A::ID)
-                        },
-                    );
-                }
-
-                for i in (1..size).rev() {
-                    ptr::write(v_ptr.add(i), (v[i * 2].0.op(&v[i * 2 + 1].0), A::ID));
-                }
-            }
-
-            LazySegTree(v)
-        } else {
-            todo!()
-        }
+        LazySegTree::from_iter_sized(v, len)
     }
 }
 

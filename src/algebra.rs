@@ -36,6 +36,7 @@ pub trait Monoid: Clone + Eq {
 ///
 /// To be a monoid action, first and second condition should be met.
 /// The third condition is required for the lazy segment tree to work.
+/// This property cannot be checked by the compiler so the implementer should verify it by themself.
 ///
 /// ```ignore
 /// // The identity of `A` should map an element from `M` to itself.
@@ -44,7 +45,7 @@ pub trait Monoid: Clone + Eq {
 /// // For any f, g in `A`, the map f * g is same as the composition map f ∘ g.
 /// (f * g)(m) == f(g(m))
 ///
-/// // The corresponding map of an element of `A` should be homomorphic.
+/// // The corresponding map of an element of `A` should be a homomorphism.
 /// f(m * n) == f(m) * f(n)
 /// ```
 pub trait LazyAct<M: Monoid>: Monoid {
