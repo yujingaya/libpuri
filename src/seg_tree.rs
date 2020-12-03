@@ -1,5 +1,5 @@
-use crate::algebra::Monoid;
-use crate::util::IntoIndex;
+use super::algebra::Monoid;
+use super::util::IntoIndex;
 use std::iter::FromIterator;
 use std::ptr;
 
